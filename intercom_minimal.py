@@ -246,10 +246,13 @@ class Intercom_minimal:
         # Send the chunk.
         
         self.send(indata)
-        ## receiver
+        ## receivtry:
+        try:
+            chunk = self.receive()
+        except chunk is None:
+            chunk = self.zero_chunk 
         
-        chunk = self.receive()
-        
+      
         chunk = np.frombuffer(chunk, np.int16).reshape(self.frames_per_chunk, self.number_of_channels)
      
         # Copy the data of chunk to outdata using slicing. Notice that
@@ -274,7 +277,7 @@ class Intercom_minimal:
                        channels=self.number_of_channels,
                        callback=self.record_send_and_play):
             print("Intercom_minimal: press <CTRL> + <c> to quit")
-            p = Process(target=self.forever)
+            p = Process(target=self.record_send_and_play)
             p.start()
             #self.forever()
             #while True:
