@@ -30,6 +30,8 @@ import argparse
 
 #from multiprocessing import Process
 
+import time
+
 # Handle the sound card. See:
 # https://python-sounddevice.readthedocs.io
 try:
@@ -171,6 +173,8 @@ class Intercom_minimal:
         self.zero_chunk = self.generate_zero_chunk()
         payload_structure = f"{self.frames_per_chunk * self.number_of_channels}h"
 
+        self.receiving_sock.settimeout(0)
+        
         print("Intercom_minimal: running ...")
 
     # The audio driver never stops recording and playing. Therefore,
@@ -252,11 +256,11 @@ class Intercom_minimal:
     def record_send_and_play(self, indata, outdata, frames, time, status):
         # Send the chunk.
         self.send(indata)
- 
+        
         try:
             chunk = self.receive()
-        except socket.timeout:
-            chunk = self.zero_chunk()
+        except BlockingIOError:
+            chunk = self.zero_chunk
         
         # Gives NumPy structure to the chunk.
         chunk = np.frombuffer(chunk, np.int16).reshape(self.frames_per_chunk, self.number_of_channels)
@@ -281,9 +285,11 @@ class Intercom_minimal:
                        channels=self.number_of_channels,
                        callback=self.record_send_and_play):
             print("Intercom_minimal: press <CTRL> + <c> to quit")
-            #p = Process(target=receive_and_control)
+            #p = Process(target=record_send_and_play())
             #p.start()
-            #while True:
+            while True:
+                time.sleep(1)
+                print(" ")
                 #self.receive_and_control()
 
     # Define the command-line arguments.
