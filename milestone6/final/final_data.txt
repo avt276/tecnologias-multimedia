@@ -1,4 +1,4 @@
-#This is the data obtained from the host to the router.
+#This is the data obtained from the total sum of the latencies.
 
 average latency = 140.86825000000002
 maximum absolute deviation (jitter)= 63.903250000000014
