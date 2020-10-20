@@ -1,0 +1,8 @@
+#This is the data obtained from the host to the router.
+
+average latency = 140.86825000000002
+maximum absolute deviation (jitter)= 63.903250000000014
+Pearson correlation coefficient = 0.2531766906491642
+
+
+From our experimental data we obtained a normal distribution.

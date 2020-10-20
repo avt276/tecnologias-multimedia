@@ -1,0 +1,7 @@
+#This is the data obtained with localhost.
+
+average latency = 0.03116999999999999
+maximum absolute deviation (jitter)= 0.051830000000000015
+Pearson correlation coefficient = 0.18506665206013984
+
+From our experimental data histogram we obtain a normal distribution.
