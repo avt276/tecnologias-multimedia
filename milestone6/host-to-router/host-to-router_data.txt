@@ -1,0 +1,8 @@
+#This is the data obtained from the host to the router.
+
+average latency = 4.00825
+maximum absolute deviation (jitter)= 53.491749999999996
+Pearson correlation coefficient = -0.0340857285231607
+Correlation coefficient < 0: use 0 (no correlation between RTT samples) in your experiments
+
+From our experimental data we obtained a normal distribution.
