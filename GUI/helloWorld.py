@@ -1,1 +1,0 @@
-import tkinters as tk
