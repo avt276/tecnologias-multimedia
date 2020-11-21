@@ -30,6 +30,9 @@ class Compress(buffer.Buffering):
             print("chunks_to_buffer =", self.chunks_to_buffer)
 
     def pack(self, chunk_number, chunk):
+        chunk = np.array([chunk[:,0], chunk[:,1]])
+        print("---------Enviamos--------------")
+        print(chunk)
         chunk = z.compress(chunk)
         packed_chunk = struct.pack("!H", chunk_number) + chunk
         return packed_chunk
@@ -37,10 +40,18 @@ class Compress(buffer.Buffering):
     def unpack(self, packed_chunk, dtype=minimal.Minimal.SAMPLE_TYPE):
         (chunk_number,) = struct.unpack("!H", packed_chunk[:2])
         chunk = packed_chunk[2:]
-        chunk = z.decompress(chunk) 
+        chunk = z.decompress(chunk)
         # Notice that struct.calcsize('H') = 2
         chunk = np.frombuffer(chunk, dtype=dtype)
-        chunk = chunk.reshape(minimal.args.frames_per_chunk, self.NUMBER_OF_CHANNELS)
+        #print("-------------Recibimos------------")
+        #print(chunk)
+        #chunk = chunk.reshape(minimal.args.frames_per_chunk, self.NUMBER_OF_CHANNELS)
+        chunk = np.vstack([chunk[0:int(len(chunk)/2)], chunk[(int(len(chunk)/2)):]])
+        #print("----------Reshape-----------------")
+        #print(chunk)
+        chunk = np.transpose(chunk)
+        #print("-------------Final-----------------")
+        #print(chunk)
         return chunk_number, chunk
     
     def run(self):
