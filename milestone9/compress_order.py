@@ -31,8 +31,8 @@ class Compress(buffer.Buffering):
 
     def pack(self, chunk_number, chunk):
         chunk = np.array([chunk[:,0], chunk[:,1]])
-        print("---------Enviamos--------------")
-        print(chunk)
+        #print("---------Enviamos--------------")
+        #print(chunk)
         chunk = z.compress(chunk)
         packed_chunk = struct.pack("!H", chunk_number) + chunk
         return packed_chunk
