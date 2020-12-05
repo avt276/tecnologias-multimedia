@@ -14,6 +14,10 @@ except ImportError:
 import minimal
 import buffer
 import compress
+import threading
+import time
+
+minimal.parser.add_argument("-q", "--minimal_quantization_step", type=int, default=1, help=":)")
 
 class BR_Control(compress.Compression):
     def __init__(self):
@@ -22,25 +26,44 @@ class BR_Control(compress.Compression):
         super().__init__()
         if __debug__:
             print("InterCom (BR_Control) is running")
+        self.quantization_step = minimal.args.minimal_quantization_step
+        print("(minimum) quantization step =", minimal.args.minimal_quantization_step)
+        self.number_of_sent_chunks = 0
+        self.number_of_received_chunks = 0
+        self.number_of_lost_packets = 0
+        data_flow_control_thread = threading.Thread(target=self.bucle)
+        data_flow_control_thread.daemon = True
+        data_flow_control_thread.start()  
 
-    def deadzone_quantizer(self, x, quantization_step):
-        k = (x / quantization_step).astype(np.int)
+    def bucle(self):
+        while True:
+            self.quantization_step += self.number_of_lost_packets
+            if self.quantization_step < minimal.args.minimal_quantization_step:
+                self.quantization_step =  minimal.args.minimal_quantization_step
+            self.number_of_lost_packets = self.number_of_sent_chunks - self.number_of_received_chunks -1
+            self.number_of_sent_chunks = 0
+            self.number_of_received_chunks = 0
+            time.sleep(1)	
+
+    def deadzone_quantizer(self, x, dtype=minimal.Minimal.SAMPLE_TYPE):
+        k = np.round(x / self.quantization_step).astype(dtype)
+        #k = (x / self.quantization_step).astype(np.int)
         return k
 
-    def deadzone_dequantizer(self, k, quantization_step):
-        y = quantization_step * k
+    def deadzone_dequantizer(self, k, dtype=minimal.Minimal.SAMPLE_TYPE):
+        y = (self.quantization_step * k).astype(dtype)
         return y  
 
     def pack(self, chunk_number, chunk):
-        quantized_step = 1
-        quantized_chunk = self.deadzone_quantizer(chunk, quantized_step)
-        quantized_chunk = super().pack(chunk_number, chunk)
+        quantized_chunk = self.deadzone_quantizer(chunk)
+        quantized_chunk = super().pack(chunk_number, quantized_chunk)
+        self.number_of_sent_chunks += 1
         return quantized_chunk
 
     def unpack(self, packed_chunk, dtype=minimal.Minimal.SAMPLE_TYPE):
-        (chunk_number, chunk) = super().unpack(packed_chunk, dtype)
-        quantized_step = 1
-        chunk = self.deadzone_dequantizer(chunk, quantized_step)
+        chunk_number, chunk = super().unpack(packed_chunk, dtype)
+        chunk = self.deadzone_dequantizer(chunk)
+        self.number_of_received_chunks += 1
         return chunk_number, chunk
 
 class BR_Control__verbose(BR_Control, compress.Compression__verbose):
@@ -56,38 +79,41 @@ class BR_Control__verbose(BR_Control, compress.Compression__verbose):
         self.average_variance = np.zeros(self.NUMBER_OF_CHANNELS)
         self.average_entropy = np.zeros(self.NUMBER_OF_CHANNELS)
         self.average_bps = np.zeros(self.NUMBER_OF_CHANNELS)
-
+        
     def stats(self):
         string = super().stats()
-        string += " {}".format(['{:9.0f}'.format(i) for i in self.variance])
-        string += " {}".format(['{:4.1f}'.format(i) for i in self.entropy])
-        string += " {}".format(['{:4.1f}'.format(i/self.frames_per_cycle) for i in self.bps])
+        #string += " {}".format(['{:9.0f}'.format(i) for i in self.variance])
+        #string += " {}".format(['{:4.1f}'.format(i) for i in self.entropy])
+        #string += " {}".format(['{:4.1f}'.format(i/self.frames_per_cycle) for i in self.bps])
+        string += " {}".format(['{:4.1f}'.format(self.quantization_step)])
         return string
 
     def first_line(self):
         string = super().first_line()
-        string += "{:27s}".format('') # variance
-        string += "{:17s}".format('') # entropy
-        string += "{:17s}".format('') # bps
+        #string += "{:27s}".format('') # variance
+        #string += "{:17s}".format('') # entropy
+        #string += "{:17s}".format('') # bps
+        string += "{:17s}".format('') # quantization_step
         return string
 
     def second_line(self):
         string = super().second_line()
-        string += "{:>27s}".format("variance") # variance
-        string += "{:>17s}".format("entropy") # entropy
-        string += "{:>17s}".format("BPS") # bps
+        #string += "{:>27s}".format("variance") # variance
+        #string += "{:>17s}".format("entropy") # entropy
+        #string += "{:>17s}".format("BPS") # bps
+        string += "{:>17s}".format("QS") # quantization_step
         return string
 
     def separator(self):
         string = super().separator()
-        string += f"{'='*(27+17*2)}"
+        string += f"{'='*(27+17)}"
         return string
 
     def averages(self):
         string = super().averages()
-        string += " {}".format(['{:9.0f}'.format(i) for i in self.average_variance])
-        string += " {}".format(['{:4.1f}'.format(i) for i in self.average_entropy])
-        string += " {}".format(['{:4.1f}'.format(i/self.frames_per_cycle) for i in self.average_bps])
+        #string += " {}".format(['{:9.0f}'.format(i) for i in self.average_variance])
+        #string += " {}".format(['{:4.1f}'.format(i) for i in self.average_entropy])
+        #string += " {}".format(['{:4.1f}'.format(i/self.frames_per_cycle) for i in self.average_bps])
         return string
         
     def entropy_in_bits_per_symbol(self, sequence_of_symbols):
@@ -122,7 +148,7 @@ class BR_Control__verbose(BR_Control, compress.Compression__verbose):
         super().cycle_feedback()
         self.chunks_in_the_cycle = []
         self.bps = np.zeros(self.NUMBER_OF_CHANNELS)
-        
+'''
     def _record_send_and_play(self, indata, outdata, frames, time, status):
         super()._record_send_and_play(indata, outdata, frames, time, status)
         self.chunks_in_the_cycle.append(indata)
@@ -137,6 +163,7 @@ class BR_Control__verbose(BR_Control, compress.Compression__verbose):
         self.bps[1] += len_compressed_channel_1*8
         chunk_number, chunk = super().unpack(packed_chunk, dtype)
         return chunk_number, chunk
+'''
 
 if __name__ == "__main__":
     minimal.parser.description = __doc__
