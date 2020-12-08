@@ -17,7 +17,7 @@ import compress
 import threading
 import time
 
-minimal.parser.add_argument("-q", "--minimal_quantization_step", type=int, default=1, help=":)")
+minimal.parser.add_argument("-q", "--minimal_quantized_step", type=int, default=1, help="Quantized step")
 
 class BR_Control(compress.Compression):
     def __init__(self):
@@ -26,44 +26,43 @@ class BR_Control(compress.Compression):
         super().__init__()
         if __debug__:
             print("InterCom (BR_Control) is running")
-        self.quantization_step = minimal.args.minimal_quantization_step
-        print("(minimum) quantization step =", minimal.args.minimal_quantization_step)
-        self.number_of_sent_chunks = 0
-        self.number_of_received_chunks = 0
-        self.number_of_lost_packets = 0
+        self.quantized_step = minimal.args.minimal_quantized_step
+        print("(minimum) quantized step =", minimal.args.minimal_quantized_step)
+        self.sent_chunks = 0
+        self.received_chunks = 0
+        self.lost_packets = 0
         data_flow_control_thread = threading.Thread(target=self.bucle)
         data_flow_control_thread.daemon = True
         data_flow_control_thread.start()  
 
     def bucle(self):
         while True:
-            self.quantization_step += self.number_of_lost_packets
-            if self.quantization_step < minimal.args.minimal_quantization_step:
-                self.quantization_step =  minimal.args.minimal_quantization_step
-            self.number_of_lost_packets = self.number_of_sent_chunks - self.number_of_received_chunks -1
-            self.number_of_sent_chunks = 0
-            self.number_of_received_chunks = 0
-            time.sleep(1)	
+            self.lost_packets = self.sent_chunks - self.received_chunks
+            self.quantized_step += self.lost_packets
+            if self.quantized_step < minimal.args.minimal_quantized_step:
+                self.quantized_step =  minimal.args.minimal_quantized_step
+            self.sent_chunks = 0
+            self.received_chunks = 0
+            time.sleep(2)	
 
     def deadzone_quantizer(self, x, dtype=minimal.Minimal.SAMPLE_TYPE):
-        k = np.round(x / self.quantization_step).astype(dtype)
-        #k = (x / self.quantization_step).astype(np.int)
+        k = np.round(x / self.quantized_step).astype(dtype)
         return k
 
     def deadzone_dequantizer(self, k, dtype=minimal.Minimal.SAMPLE_TYPE):
-        y = (self.quantization_step * k).astype(dtype)
+        y = (self.quantized_step * k).astype(dtype)
         return y  
 
     def pack(self, chunk_number, chunk):
         quantized_chunk = self.deadzone_quantizer(chunk)
         quantized_chunk = super().pack(chunk_number, quantized_chunk)
-        self.number_of_sent_chunks += 1
+        self.sent_chunks += 1
         return quantized_chunk
 
     def unpack(self, packed_chunk, dtype=minimal.Minimal.SAMPLE_TYPE):
         chunk_number, chunk = super().unpack(packed_chunk, dtype)
         chunk = self.deadzone_dequantizer(chunk)
-        self.number_of_received_chunks += 1
+        self.received_chunks += 1
         return chunk_number, chunk
 
 class BR_Control__verbose(BR_Control, compress.Compression__verbose):
@@ -82,38 +81,26 @@ class BR_Control__verbose(BR_Control, compress.Compression__verbose):
         
     def stats(self):
         string = super().stats()
-        #string += " {}".format(['{:9.0f}'.format(i) for i in self.variance])
-        #string += " {}".format(['{:4.1f}'.format(i) for i in self.entropy])
-        #string += " {}".format(['{:4.1f}'.format(i/self.frames_per_cycle) for i in self.bps])
-        string += " {}".format(['{:4.1f}'.format(self.quantization_step)])
+        string += " {}".format(['{:4.1f}'.format(self.quantized_step)])
         return string
 
     def first_line(self):
         string = super().first_line()
-        #string += "{:27s}".format('') # variance
-        #string += "{:17s}".format('') # entropy
-        #string += "{:17s}".format('') # bps
-        string += "{:17s}".format('') # quantization_step
+        string += "{:8s}".format('') # quantized_step
         return string
 
     def second_line(self):
         string = super().second_line()
-        #string += "{:>27s}".format("variance") # variance
-        #string += "{:>17s}".format("entropy") # entropy
-        #string += "{:>17s}".format("BPS") # bps
-        string += "{:>17s}".format("QS") # quantization_step
+        string += "{:>8s}".format("QS") # quantized_step
         return string
 
     def separator(self):
         string = super().separator()
-        string += f"{'='*(27+17)}"
+        string += f"{'='*(20)}"
         return string
 
     def averages(self):
         string = super().averages()
-        #string += " {}".format(['{:9.0f}'.format(i) for i in self.average_variance])
-        #string += " {}".format(['{:4.1f}'.format(i) for i in self.average_entropy])
-        #string += " {}".format(['{:4.1f}'.format(i/self.frames_per_cycle) for i in self.average_bps])
         return string
         
     def entropy_in_bits_per_symbol(self, sequence_of_symbols):
@@ -131,23 +118,8 @@ class BR_Control__verbose(BR_Control, compress.Compression__verbose):
         return entropy
 
     def cycle_feedback(self):
-        try:
-            concatenated_chunks = np.vstack(self.chunks_in_the_cycle)
-        except ValueError:
-            concatenated_chunks = np.vstack([self.zero_chunk, self.zero_chunk])
-        
-        self.variance = np.var(concatenated_chunks, axis=0)
-        self.average_variance = self.moving_average(self.average_variance, self.variance, self.cycle)
-
-        self.entropy[0] = self.entropy_in_bits_per_symbol(concatenated_chunks[:, 0])
-        self.entropy[1] = self.entropy_in_bits_per_symbol(concatenated_chunks[:, 1])
-        self.average_entropy = self.moving_average(self.average_entropy, self.entropy, self.cycle)
-
-        self.average_bps = self.moving_average(self.average_bps, self.bps, self.cycle)
-
         super().cycle_feedback()
-        self.chunks_in_the_cycle = []
-        self.bps = np.zeros(self.NUMBER_OF_CHANNELS)
+
 '''
     def _record_send_and_play(self, indata, outdata, frames, time, status):
         super()._record_send_and_play(indata, outdata, frames, time, status)
