@@ -16,39 +16,16 @@ import buffer
 import compress
 import threading
 import time
-import quantize
+import br_control
 import sounddevice as sd
 
-#minimal.parser.add_argument("-q", "--minimal_quantized_step", type=int, default=1, help="Quantized step")
-
-class Spatial_decorrelation(quantize.BR_Control):
+class Spatial_decorrelation(br_control.BR_Control):
     def __init__(self):
         if __debug__:
             print("Running Spatial_decorrelation.__init__")
         super().__init__()
         if __debug__:
             print("InterCom (Spatial_decorrelation) is running")
-
-    # Forward transform:
-    #
-    #  [w[0]] = 1/sqrt(2) [1  1] [x[0]]
-    #  [w[1]]             [1 -1] [x[1]]
-    def KLT_analyze(self, x):
-        w = np.empty_like(x, dtype=np.int32)
-        w[:, 0] = np.rint((x[:, 0].astype(np.int32) + x[:, 1]) / math.sqrt(2)) # L
-        w[:, 1] = np.rint((x[:, 0].astype(np.int32) - x[:, 1]) / math.sqrt(2)) # H
-        return w
-
-    # Inverse transform:
-    #
-    #  [x[0]] = 1/sqrt(2) [1  1] [w[0]]
-    #  [x[1]]             [1 -1] [w[1]]
-    def KLT_synthesize(self, w):
-        x = np.empty_like(w, dtype=np.int16)
-        #x[:, 0] = np.rint((w[:, 0] + w[:, 1]) / math.sqrt(2)) # L(ow frequency subband)
-        #x[:, 1] = np.rint((w[:, 0] - w[:, 1]) / math.sqrt(2)) # H(igh frequency subband)
-        x[:, :] = self.KLT_analyze(w)
-        return x
 
     # Forward transform:
     #
@@ -72,173 +49,22 @@ class Spatial_decorrelation(quantize.BR_Control):
         x[:, 1] = (w[:, 0] - w[:, 1])/2 # H(igh frequency subband)
         return x
 
-    # https://www.researchgate.net/profile/Amir_Said2/publication/2598141_Reversible_Image_Compression_Via_Multiresolution_Representation_and_Predictive_Coding/links/56952cf008ae820ff074a536/Reversible-Image-Compression-Via-Multiresolution-Representation-and-Predictive-Coding.pdf
-    #
-    # Forward transform:
-    #
-    #  w[0] = ceil((x[0] + x[1])/2)
-    #  w[1] = x[0] - x[1] 
-    #
-    # Inverse transform:
-    #
-    #  x[0] = w[0] + ceil((w[1]+1)/2)
-    #  x[1] = x[0] - w[1]
-
-    def ST_analyze(self, x):
-        w = np.empty_like(x, dtype=np.int32)
-        w[:, 0] = np.ceil((x[:, 0].astype(np.int32) + x[:, 1])/2)
-        w[:, 1] = x[:, 0].astype(np.int32) - x[:, 1]
-        return w
-
-    def ST_synthesize(self, w):
-        x = np.empty_like(w, dtype=np.int16)
-        x[:, 0] = w[:, 0] + np.ceil((w[:, 1] + 1)/2)
-        x[:, 1] = x[:, 0] - w[:, 1]
-        return x
-
-    # Forward transform:
-    #
-    #  [w[0]] = 1/2 [1  1] [x[0]]
-    #  [w[1]]       [1 -1] [x[1]]
-    #
-    # Inverse transform:
-    #
-    #  [x[0]] = [1  1] [w[0]]
-    #  [x[1]]   [1 -1] [w[1]]
-
-    def MSC2_analyze(self, x):
-        w = np.empty_like(x, dtype=np.int32)
-        w[:, 0] = (x[:, 0].astype(np.int32) + x[:, 1])/2 # L(ow frequency subband)
-        w[:, 1] = (x[:, 0].astype(np.int32) - x[:, 1])/2 # H(igh frequency subband)
-        #w[:, 0] = w[:, 0] / 2
-        return w
-
-    def MSC2_synthesize(self, w):
-        x = np.empty_like(w, dtype=np.int16)
-        x[:, 0] = w[:, 1] + x[:, 1]
-        x[:, 1] = w[:, 0] - x[:, 0]
-        #w[:, 0] = w[:, 0] * 2
-        #x[:, :] = MSC2_analyze(w)
-        return x
-
-    # Forward transform:
-    #
-    #  [w[0]] = 1/2 [1  1] [x[0]]
-    #  [w[1]]       [1 -1] [x[1]]
-    #
-    # Inverse transform:
-    #
-    #  [x[0]] = [1  1] [w[0]]
-    #  [x[1]]   [1 -1] [w[1]]
-    #
-    # Forward transform:
-    #
-    #  w[1] = x[0] - x[1] 
-    #  w[0] = x[0] - w[1]/2
-    #  w[1] /= 2
-    #
-    # Inverse transform:
-    #
-    #  w[1] *= 2
-    #  x[0] = w[0] + w[1]/2
-    #  x[1] = x[0] - w[1]
-
-    def orig2_analyze(self, x):
-        w = np.empty_like(x, dtype=np.int32)
-        w[:, 1] = x[:, 0].astype(np.int32) - x[:, 1]
-        w[:, 0] = x[:, 0] - w[:, 1] / 2
-        w[:, 1] = w[:, 1] / 2
-        return w
-
-    def orig2_synthesize(self, w):
-        x = np.empty_like(w, dtype=np.int16)
-        w[:, 1] = w[:, 1] * 2
-        x[:, 0] = w[:, 0] + w[:, 1]/2
-        x[:, 1] = x[:, 0] - w[:, 1]
-        return x
-
-    # Forward transform:
-    #
-    #  w[1] = x[1] - x[0] 
-    #  w[0] = x[0] + w[1]/2
-    #  w[1] /= 2
-    #
-    # Inverse transform:
-    #
-    #  w[1] *= 2
-    #  x[0] = w[0] - w[1]/2
-    #  x[1] = x[0] + w[1]
-
-    def orig_analyze(self, x):
-        w = np.empty_like(x, dtype=np.int32)
-        w[:, 1] = x[:, 1].astype(np.int32) - x[:, 0]
-        w[:, 0] = x[:, 0] + np.rint(w[:, 1] / 2)
-        w[:, 1] = np.rint(w[:, 1] / 2)
-        return w
-
-    def orig_synthesize(self, w):
-        x = np.empty_like(w, dtype=np.int16)
-        w[:, 1] = w[:, 1] * 2
-        x[:, 0] = w[:, 0] - np.rint(w[:, 1]/2)
-        x[:, 1] = w[:, 1] + x[:, 0]
-        return x
-
-    # Introduction to Data Compression (Sayood), pag. 402
-
-    def pordeterminar_analyze(self, chunk):
-        analyzed_chunk = np.empty_like(chunk, dtype=np.int16)
-        analyzed_chunk[:, 1] = chunk[:, 1] - chunk[:, 0]
-        analyzed_chunk[:, 0] = chunk[:, 0] + np.rint(analyzed_chunk[:, 1]/2)
-        return analyzed_chunk
-
-    def pordeterminar_synthesize(self, analyzed_chunk):
-        chunk = np.empty_like(analyzed_chunk, dtype=np.int16)
-        chunk[:, 0] = analyzed_chunk[:, 0] - np.rint(analyzed_chunk[:, 1]/2)
-        chunk[:, 1] = analyzed_chunk[:, 1] + chunk[:, 0]
-        return chunk
-
-    def orig22_analyze(self, chunk):
-        analyzed_chunk = np.empty_like(chunk, dtype=np.int16)
-        analyzed_chunk[:, 1] = chunk[:, 1] - chunk[:, 0]
-        analyzed_chunk[:, 0] = (chunk[:, 0] + chunk[:, 1]) // 2
-        return analyzed_chunk
-
-    def orig22_synthesize(self, analyzed_chunk):
-        chunk = np.empty_like(analyzed_chunk, dtype=np.int16)
-        chunk[:, 1] = analyzed_chunk[:, 0] + analyzed_chunk[:, 1] // 2
-        chunk[:, 0] = chunk[:, 1] - analyzed_chunk[:, 1]
-        return chunk
-
-    def orig3_analyze(self, chunk):
-        analyzed_chunk = np.empty_like(chunk, dtype=np.int16)
-        analyzed_chunk[:, 1] = chunk[:, 1] - chunk[:, 0]
-        analyzed_chunk[:, 0] = chunk[:, 0] + np.rint(analyzed_chunk[:, 1]/2)
-        analyzed_chunk[:, 1] = analyzed_chunk[:, 1] // 2
-        return analyzed_chunk
-
-    def orig3_synthesize(self, analyzed_chunk):
-        chunk = np.empty_like(analyzed_chunk, dtype=np.int16)
-        analyzed_chunk[:, 1] = analyzed_chunk[:, 1] * 2
-        chunk[:, 0] = analyzed_chunk[:, 0] - np.rint(analyzed_chunk[:, 1]/2)
-        chunk[:, 1] = analyzed_chunk[:, 1] + chunk[:, 0]
-        return chunk
-
     def pack(self, chunk_number, chunk):
         #quantized_chunk = self.deadzone_quantizer(chunk)
         #quantized_chunk = super().pack(chunk_number, quantized_chunk)
         #self.sent_chunks += 1
         #return quantized_chunk
-        analyzed_chunk = self.KLT_analyze(chunk)
+        analyzed_chunk = self.MST_analyze(chunk)
         return super().pack(chunk_number, analyzed_chunk)
 
     def unpack(self, packed_chunk, dtype=minimal.Minimal.SAMPLE_TYPE):
         chunk_number, chunk = super().unpack(packed_chunk, dtype)
         #chunk = self.deadzone_dequantizer(chunk)
         #self.received_chunks += 1
-        synthesize_chunk = self.KLT_synthesize(chunk)
+        synthesize_chunk = self.MST_synthesize(chunk)
         return chunk_number, synthesize_chunk
 
-class Spatial_decorrelation__verbose(Spatial_decorrelation, quantize.BR_Control__verbose):
+class Spatial_decorrelation__verbose(Spatial_decorrelation, br_control.BR_Control__verbose):
     def __init__(self):
         if __debug__:
             print("Running Spatial_decorrelation__verbose.__init__")
