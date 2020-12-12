@@ -49,18 +49,12 @@ class Spatial_decorrelation(br_control.BR_Control):
         x[:, 1] = (w[:, 0] - w[:, 1])/2 # H(igh frequency subband)
         return x
 
-    def pack(self, chunk_number, chunk):
-        #quantized_chunk = self.deadzone_quantizer(chunk)
-        #quantized_chunk = super().pack(chunk_number, quantized_chunk)
-        #self.sent_chunks += 1
-        #return quantized_chunk
+    def pack(self, chunk_number, chunk)
         analyzed_chunk = self.MST_analyze(chunk)
         return super().pack(chunk_number, analyzed_chunk)
 
     def unpack(self, packed_chunk, dtype=minimal.Minimal.SAMPLE_TYPE):
         chunk_number, chunk = super().unpack(packed_chunk, dtype)
-        #chunk = self.deadzone_dequantizer(chunk)
-        #self.received_chunks += 1
         synthesize_chunk = self.MST_synthesize(chunk)
         return chunk_number, synthesize_chunk
 
