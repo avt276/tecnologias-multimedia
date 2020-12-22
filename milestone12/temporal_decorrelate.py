@@ -37,87 +37,56 @@ class Temporal_decorrelation(intra_frame_decorrelation.Intra_frame_decorrelation
         if __debug__:
             print("InterCom (Temporal_decorrelation) is running")
         self.levels = 3
-        self.wavelet_name = "db11"
+        self.wavelet_name = "db5"
         self.wavelet = pywt.Wavelet(self.wavelet_name)
         self.previous_chunk = super().generate_zero_chunk()
         self.current_chunk = super().generate_zero_chunk()
         self.next_chunk = super().generate_zero_chunk()
         self.extended_chunk = super().generate_zero_chunk()
-        self.slices = 0
+
+        if(self.levels == 0):
+            self.number_of_overlaped_samples = 0
+        else:
+            self.number_of_overlaped_samples = 1 << math.ceil(math.log(self.wavelet.dec_len * self.levels) / math.log(2))
+
+        print("Size current chunk:", self.current_chunk.shape)
+        temp_decomposition = pywt.wavedec(self.current_chunk[:,0], wavelet=self.wavelet, level=self.levels, mode="per")
+        temp_coefficients, self.slices = pywt.coeffs_to_array(temp_decomposition)
+    
         
     def pack(self, chunk_number, chunk):
         self.next_chunk = chunk
-
-        number_of_overlaped_samples = 1 << math.ceil(math.log(self.wavelet.dec_len * self.levels) / math.log(2))
-        self.extended_chunk = np.concatenate([self.previous_chunk[len(self.previous_chunk) - number_of_overlaped_samples :], self.current_chunk, self.next_chunk[: number_of_overlaped_samples]])
         
-        decomposition = pywt.wavedec(self.extended_chunk, wavelet=self.wavelet, level=self.levels, mode="per")
-        coefficients, self.slices = pywt.coeffs_to_array(decomposition)
-        #return super().pack(chunk_number, chunk)
-        return super().pack(chunk_number, coefficients)
+        self.extended_chunk = np.concatenate([self.previous_chunk[len(self.previous_chunk) - self.number_of_overlaped_samples :], self.current_chunk, self.next_chunk[: self.number_of_overlaped_samples]])
+        
+        decomposition_left = pywt.wavedec(self.extended_chunk[:,0], wavelet=self.wavelet, level=self.levels, mode="per")
+        coefficients_0, slices = pywt.coeffs_to_array(decomposition_left)
+        decomposition_right = pywt.wavedec(self.extended_chunk[:,1], wavelet=self.wavelet, level=self.levels, mode="per")
+        coefficients_1, slices = pywt.coeffs_to_array(decomposition_right)
+        
+        coefficients = np.empty_like(self.extended_chunk, dtype=np.int32)
+        coefficients[:, 0] = coefficients_0[:]
+        coefficients[:, 1] = coefficients_1[:]
+        return super().pack(chunk_number, coefficients[self.number_of_overlaped_samples:-self.number_of_overlaped_samples])
         #TODO: elegir pywavelet.
 
     def unpack(self, packed_chunk, dtype=minimal.Minimal.SAMPLE_TYPE):
         chunk_number, chunk = super().unpack(packed_chunk, dtype)
-        decomposition = pywt.array_to_coeffs(chunk, self.slices, output_format="wavedec")
-        reconstructed_chunk = pywt.waverec(decomposition, wavelet=self.wavelet, mode="per")
+        #print("Chunk: ", chunk.shape)
+        #print("Slices: ", self.slices)
+        decomposition_left = pywt.array_to_coeffs(chunk[:,0], self.slices, output_format="wavedec")
+        decomposition_right = pywt.array_to_coeffs(chunk[:,1], self.slices, output_format="wavedec")
+        reconstructed_chunk_left = pywt.waverec(decomposition_left, wavelet=self.wavelet, mode="per")
+        reconstructed_chunk_right = pywt.waverec(decomposition_right, wavelet=self.wavelet, mode="per")
+        reconstructed_chunk = np.empty((minimal.args.frames_per_chunk, 2), dtype=dtype)
+        reconstructed_chunk[:, 0] = reconstructed_chunk_left[:]
+        reconstructed_chunk[:, 1] = reconstructed_chunk_right[:]
         self.previous_chunk = self.current_chunk
         self.current_chunk = self.next_chunk
         return chunk_number, reconstructed_chunk
 
 class Temporal_decorrelation__verbose(Temporal_decorrelation, intra_frame_decorrelation.Intra_frame_decorrelation__verbose):
-    def __init__(self):
-        super().__init__()
-        self.LH_variance = np.zeros(self.NUMBER_OF_CHANNELS)
-        self.average_LH_variance = np.zeros(self.NUMBER_OF_CHANNELS)
-        self.LH_chunks_in_the_cycle = []
-
-    def stats(self):
-        #string = super().stats()
-        #string += " {}".format(['{:>5d}'.format(int(i/1000)) for i in self.LH_variance])
-        super.stats(self)
-
-    def _first_line(self):
-        #string = super().first_line()
-        #string += "{:19s}".format('') # LH_variance
-        super._first_line(self)
-
-    def first_line(self):
-        #string = super().first_line()
-        #string += "{:19s}".format('') # LH_variance
-        super.first_line(self)
-
-    def second_line(self):
-        #string = super().second_line()
-        #string += "{:>19s}".format("LH variance") # LH variance
-        super.second_line(self)
-
-    def separator(self):
-        #string = super().separator()
-        #string += f"{'='*19}"
-        #return string
-        super.separator(self)
-
-    def averages(self):
-        #string = super().averages()
-        #string += " {}".format(['{:>5d}'.format(int(i/1000)) for i in self.average_LH_variance])
-        #return string
-        super.averages(self)
-
-    def cycle_feedback(self):
-        #try:
-            #concatenated_chunks = np.vstack(self.LH_chunks_in_the_cycle)
-            #self.LH_variance = np.var(concatenated_chunks, axis=0)
-        #except ValueError:
-            #pass
-        #self.average_LH_variance = self.moving_average(self.average_LH_variance, self.LH_variance, self.cycle)
-        super().cycle_feedback()
-        #self.LH_chunks_in_the_cycle = []
-
-    def analyze(self, chunk):
-        analyzed_chunk = super().analyze(chunk)
-        self.LH_chunks_in_the_cycle.append(analyzed_chunk)
-        return analyzed_chunk
+    pass
 
 if __name__ == "__main__":
     minimal.parser.description = __doc__
