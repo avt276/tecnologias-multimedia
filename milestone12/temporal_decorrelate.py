@@ -3,27 +3,15 @@
 
 ''' Real-time Audio Intercommunicator (lossless compression of the chunks). '''
 
-import zlib
-import matplotlib.pyplot as plt
 import numpy as np
-from scipy import signal
-from ipywidgets import interact, interactive, fixed, interact_manual
-import ipywidgets as widgets
-import pylab
 import pywt
 import pywt.data
-import struct
 import math
 try:
     import argcomplete  # <tab> completion for argparse.
 except ImportError:
     print("Unable to import argcomplete")
 import minimal
-import buffer
-import compress
-import threading
-import time
-import br_control
 import sounddevice as sd
 import intra_frame_decorrelation
 '''
@@ -49,7 +37,7 @@ class Temporal_decorrelation(intra_frame_decorrelation.Intra_frame_decorrelation
         else:
             self.number_of_overlaped_samples = 1 << math.ceil(math.log(self.wavelet.dec_len * self.levels) / math.log(2))
 
-        print("Size current chunk:", self.current_chunk.shape)
+        #print("Size current chunk:", self.current_chunk.shape)
         temp_decomposition = pywt.wavedec(self.current_chunk[:,0], wavelet=self.wavelet, level=self.levels, mode="per")
         temp_coefficients, self.slices = pywt.coeffs_to_array(temp_decomposition)
     
