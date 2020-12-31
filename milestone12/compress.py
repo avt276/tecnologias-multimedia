@@ -94,7 +94,6 @@ class Compression(buffer.Buffering):
 
         '''
         (chunk_number, len_compressed_channel_0) = struct.unpack("!HH", packed_chunk[:4])
-
         compressed_channel_0 = packed_chunk[4:len_compressed_channel_0+4]
         compressed_channel_1 = packed_chunk[len_compressed_channel_0+4:]
         channel_0 = zlib.decompress(compressed_channel_0)
@@ -102,10 +101,9 @@ class Compression(buffer.Buffering):
         channel_1 = zlib.decompress(compressed_channel_1)
         channel_1 = np.frombuffer(channel_1, dtype)
 
-        chunk = np.empty((minimal.args.frames_per_chunk, 2), dtype=dtype)
+        chunk = np.empty((len(channel_0), 2), dtype=dtype)
         chunk[:, 0] = channel_0[:]
         chunk[:, 1] = channel_1[:]
-
         return chunk_number, chunk
     
     def _unpack(self, packed_chunk, dtype=minimal.Minimal.SAMPLE_TYPE):
