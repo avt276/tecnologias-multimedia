@@ -18,6 +18,9 @@ import intra_frame_decorrelation
 '''
 pywavelets.readthedocs.io/en/latest/ref/dwt-discrete-wavelet-transform.html#maximum-decomposition-level-dwt-max-level-dwtn-max-level
 '''
+
+minimal.parser.add_argument("-n", "--number_of_levels", type=int, default=4, help="Number of levels")
+
 class Temporal_decorrelation(intra_frame_decorrelation.Intra_frame_decorrelation):
     def __init__(self):
         if __debug__:
@@ -25,7 +28,8 @@ class Temporal_decorrelation(intra_frame_decorrelation.Intra_frame_decorrelation
         super().__init__()
         if __debug__:
             print("InterCom (Temporal_decorrelation) is running")
-        self.levels = 4
+        self.levels = minimal.args.number_of_levels
+        print("Number of levels =", minimal.args.number_of_levels)
         #db3
         #sym2
         #sym4
@@ -55,8 +59,6 @@ class Temporal_decorrelation(intra_frame_decorrelation.Intra_frame_decorrelation
         self.next_chunk = chunk.copy()
        
         self.extended_chunk = np.concatenate([self.previous_chunk[-self.number_of_overlaped_samples :], self.current_chunk, self.next_chunk[: self.number_of_overlaped_samples]])
-
-        self.levels = pywt.dwtn_max_level(self.extended_chunk.shape, self.wavelet)
         
         coefficients = np.empty_like(self.extended_chunk, dtype=np.int32)
 
@@ -80,18 +82,6 @@ class Temporal_decorrelation(intra_frame_decorrelation.Intra_frame_decorrelation
         reconstructed_chunk[:, 1] = np.rint(reconstructed_chunk_right[:]).astype(np.int16)
 
         return chunk_number, reconstructed_chunk
-    
-    '''
-    def unpack(self, coefficients, slices):
-        reconstructed_chunk = np.empty(coefficients.shape, dtype=np.int16)
-        decomposition_left = pywt.array_to_coeffs(coefficients[:,0], slices, output_format="wavedec")
-        decomposition_right = pywt.array_to_coeffs(coefficients[:,1], slices, output_format="wavedec")
-        reconstructed_chunk_left = pywt.waverec(decomposition_left, wavelet=self.wavelet, mode="per")
-        reconstructed_chunk_right = pywt.waverec(decomposition_right, wavelet=self.wavelet, mode="per")
-        reconstructed_chunk[:, 0] = np.rint(reconstructed_chunk_left[:]).astype(np.int16)
-        reconstructed_chunk[:, 1] = np.rint(reconstructed_chunk_right[:]).astype(np.int16) 
-        return reconstructed_chunk  
-    '''
 
 class Temporal_decorrelation__verbose(Temporal_decorrelation, intra_frame_decorrelation.Intra_frame_decorrelation__verbose):
     pass
