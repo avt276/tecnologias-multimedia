@@ -30,13 +30,8 @@ class Temporal_decorrelation(intra_frame_decorrelation.Intra_frame_decorrelation
             print("InterCom (Temporal_decorrelation) is running")
         self.levels = minimal.args.number_of_levels
         print("Number of levels =", minimal.args.number_of_levels)
-        #db3
-        #sym2
-        #sym4
-        #coif2
-        #bior4.4, bior5.5
-        #rbio1.3
-        self.wavelet_name = "db3"
+        
+        self.wavelet_name = "coif2"
         self.wavelet = pywt.Wavelet(self.wavelet_name)
         self.previous_chunk = super().generate_zero_chunk()
         self.current_chunk = super().generate_zero_chunk()
