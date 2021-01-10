@@ -17,6 +17,9 @@ import intra_frame_decorrelation
 '''
 pywavelets.readthedocs.io/en/latest/ref/dwt-discrete-wavelet-transform.html#maximum-decomposition-level-dwt-max-level-dwtn-max-level
 '''
+
+minimal.parser.add_argument("-n", "--number_of_levels", type=int, default=4, help="Number of levels")
+
 class Temporal_decorrelation_simple(intra_frame_decorrelation.Intra_frame_decorrelation):
     def __init__(self):
         if __debug__:
@@ -24,8 +27,10 @@ class Temporal_decorrelation_simple(intra_frame_decorrelation.Intra_frame_decorr
         super().__init__()
         if __debug__:
             print("InterCom (Temporal_decorrelation_simple) is running")
-        self.levels = 3
-        self.wavelet_name = "db5"
+        self.levels = minimal.args.number_of_levels
+        print("Number of levels =", minimal.args.number_of_levels)
+
+        self.wavelet_name = "coif2"
         self.wavelet = pywt.Wavelet(self.wavelet_name)
 
         if(self.levels == 0):
